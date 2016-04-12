@@ -40,7 +40,7 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
                                          SPI_CLOCK_DIV2);
                                          
 // Local server IP, port, and repository (change with your settings !)
-uint32_t ip = cc3000.IP2U32(10,168,168,102);
+uint32_t ip = cc3000.IP2U32(10,168,168,104);
 int port = 80;
 String repository = "/arduino-camera-wifi-master/";                                         
                                       
@@ -138,11 +138,12 @@ void setup() {
         buffer = cam.readPicture(bytesToRead);
         client.write(buffer, bytesToRead);
     
-        if(++wCount >= 64) { // Every 2K, give a little feedback so it doesn't appear locked up
+        if(++wCount >= 32) { // Every 2K, give a little feedback so it doesn't appear locked up
           Serial.print('.');
           wCount = 0;
         }
         jpglen -= bytesToRead; 
+        delay(20);
       }
       
       client.print(end_request);
@@ -174,5 +175,6 @@ void setup() {
 }
 
 void loop() {
+
 }
 
