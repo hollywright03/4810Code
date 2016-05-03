@@ -1,37 +1,45 @@
 #include <Servo.h>
 #include <SoftwareSerial.h>
 
-#define LEFTF 5
-#define LEFTB 4
-#define RIGHTF 0
-#define RIGHTB 2
+#define LEFTF 4
+#define LEFTB 5
+#define RIGHTF 2
+#define RIGHTB 0
 
 char returnChar = '\r';
 
 // Servo variables
 Servo servoLeft; Servo servoRight;
-int leftPos = 15;
-int rightPos = 180;
+int leftPos = 125;
+int rightPos = 55;
 
-SoftwareSerial BT(3, 1);
+int ledPin = 16;
+bool ledOn;
+
+SoftwareSerial BT(13, 15);
 
 void setup() {
-  servoLeft.attach(14); //D5
-  servoRight.attach(12); //D6
+  servoLeft.attach(12); //D5
+  servoRight.attach(14); //D6
   servoLeft.write(leftPos);
   servoRight.write(rightPos);
 
   BT.begin(9600);
   Serial.begin(9600);
-  BT.println("Hello from Arduino");
+  BT.println("Hello from Computer");
 
-  Serial.begin(9600);
+  //Serial.begin(9600);
 
   // Set up output pins
   pinMode(LEFTF, OUTPUT);
   pinMode(LEFTB, OUTPUT);
   pinMode(RIGHTF, OUTPUT);
   pinMode(RIGHTB, OUTPUT);
+
+  // LED pin
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, HIGH);
+  ledOn = true;
 }
 
 // Set the motor speed for the specific motor.
@@ -53,9 +61,14 @@ void motorSpeed(int motorPin, int spd) {
 
   if (spd == 0) {
     analogWrite(motorPin, 0);
-  } else {
+  } else if (spd == 1) {
+    analogWrite(motorPin, 800);
+  } else if (spd == 2) {
     // For 1 return 800, rough minimum speed, for 2 return 1023
-    analogWrite(motorPin, 223 * spd + 577);
+    //analogWrite(motorPin, 223 * spd + 577);
+    analogWrite(motorPin, 1023);
+  } else if (spd == 3) {
+    analogWrite(motorPin, 400);
   }
   Serial.print("MOTOR: ");
   Serial.println(motorPin);
@@ -86,40 +99,140 @@ void servoMove(Servo servo, int dir) {
   }
 }
 
-void open() {
+void open_grabber() {
   servoRight.write(55);
-  servoLeft.write(140);
+  servoLeft.write(125);
 }
 
-void close() {
-  servoRight.write(180);
+void close_grabber() {
+  servoRight.write(175);
   servoLeft.write(5);
 }
 
+void led_toggle() {
+  if (ledOn) {
+    digitalWrite(ledPin, LOW);
+    ledOn = false;
+  } else {
+    digitalWrite(ledPin, HIGH);
+    ledOn = true;
+  }
+}
+
+void forward(int spd) {
+  motorSpeed(LEFTF, spd);
+  motorSpeed(RIGHTF, spd);
+}
+
+void backward(int spd) {
+  motorSpeed(LEFTB, spd);
+  motorSpeed(RIGHTB, spd);
+}
+
+void left_turn(int spd) {
+  motorSpeed(LEFTB, spd);
+  motorSpeed(RIGHTF, spd);
+}
+
+void right_turn(int spd) {
+  motorSpeed(LEFTF, spd);
+  motorSpeed(RIGHTB, spd);
+}
+
+void stopMotor() {
+  motorSpeed(LEFTF, 0);
+  motorSpeed(RIGHTF, 0);
+}
+
+void precision_turn(int dir) {
+  switch dir {
+  case 0:
+    stopMotor();
+      break;
+    case 1:
+      forward(3);
+      break;
+    case 2:
+      backward(3);
+      break;
+    case 3:
+      left_turn(3);
+      break;
+    case 4:
+      right_turn(3);
+      break;
+    default:
+      break;
+  }
+}
+
+void grabber(int cmd) {
+  if (cmd == 0) {
+    close_grabber();
+  } else if (cmd == 1) {
+    open_grabber();
+  }
+}
+
 /* Interprets the incoming message and calls the correct function. */
-void read_message(char bit1, char bit2) {
+void read_message(int bit1, int input2) {
   //motorFunction motorFunc;
   //int input1;
-  int input2 = bit2 - '0';
+  //int input2 = bit2 - '0';
 
+  //  switch (bit1) {
+  //    case 0:
+  //      motorSpeed(LEFTF, input2);
+  //      break;
+  //    case 1:
+  //      motorSpeed(LEFTB, input2);
+  //      break;
+  //    case 2:
+  //      motorSpeed(RIGHTF, input2);
+  //      break;
+  //    case 3:
+  //      motorSpeed(RIGHTB, input2);
+  //      break;
+  //    case 4:
+  //      servoMove(servoLeft, input2);
+  //      break;
+  //    case 5:
+  //      servoMove(servoRight, input2);
+  //      break;
+  //    case 6:
+  //      led_toggle();
+  //      break;
+  //    case 7:
+  //      //BT.println("No code for this yet lol");
+  //      break;
+  //  }
   switch (bit1) {
-    case '0':
-      motorSpeed(LEFTF, input2);
+    case 0:
+      forward(input2);
       break;
-    case '1':
-      motorSpeed(LEFTB, input2);
+    case 1:
+      backward(input2);
       break;
-    case '2':
-      motorSpeed(RIGHTF, input2);
+    case 2:
+      right_turn(input2);
       break;
-    case '3':
-      motorSpeed(RIGHTB, input2);
+    case 3:
+      left_turn(input2);
       break;
-    case '4':
+    case 4:
       servoMove(servoLeft, input2);
       break;
-    case '5':
+    case 5:
       servoMove(servoRight, input2);
+      break;
+    case 6:
+      led_toggle();
+      break;
+    case 7:
+      precision_turn(input2);
+      break;
+    case 8:
+      grabber(input2);
       break;
   }
 
@@ -127,73 +240,35 @@ void read_message(char bit1, char bit2) {
 
 
 
-char readByte; //stores incoming character from other device
+//char readByte; //stores incoming character from other device
 bool justReceived = false; //stores whether a character has been recieved.
+bool byteCount = false;
 char i, j, a;
 int k = 0;
+int byte1, byte2;
 String readStr;
 //char readStr[3];
 
 void loop() {
 
+
+  if (justReceived) {
+    BT.println(byte1);
+    justReceived = false;
+    read_message(byte1, byte2);
+  }
+
   if (BT.available()) {
-    while (BT.available()) {
-      a = (char)BT.read();
-      if (a == returnChar || k > 2) {
-        justReceived = true;
-      } else {
-        readStr += a;
-      }
+    if (!byteCount) {
+      byte1 = BT.read() - '0';
+      byteCount = true;
+    } else {
+      byte2 = BT.read() - '0';
+      byteCount = false;
+      justReceived = true;
     }
-    //    BT.print(a);
-    //    Serial.print(a);
-    if (justReceived) {
-      i = readStr[0];
-      j = readStr[1];
-      Serial.print("i = ");
-      Serial.println(i);
-      Serial.print("j = ");
-      Serial.println(j);
-      read_message(i, j);
-      i = 0;
-      j = 0;
-      readStr = "";
-    }
-    //if (BT.available()) {
-    //  a = BT.read();
-    //  if (a == 'o') {
-    //    open();
-    //  } else if (a == 'c') {
-    //    close();
-    //  }
-    //}
+    delay(10);
 
-
-
-
-
-    //  if (BT.available()) {
-    //    BT.println("blah blah");
-    //    readByte = (BT.read());
-    //    justReceived = true;
-    //
-    //    if (i < 19) {
-    //      readStr[i] = readByte;
-    //      i++;
-    //      readStr[i] = '\0';
-    //    }
-    //
-    //    }
-    //    if (justReceived) {
-    //      Serial.println("Hello");
-    //      Serial.println(readStr);
-    //      String test = String(readStr);
-    //      String side = test.substring(0,1);
-    //      String spd = test.substring(1);
-    //      justReceived = false;
-    //      i = 0;
-    //      readStr[0] = '\0';
-    //    }
 
   }
 }
